@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+// simple synthetic waveform generator
+// lets us test pipeline without real hardware input
 int capture_backend_read(struct audio_block *block)
 {
     static int16_t level = -14000;
@@ -11,6 +13,7 @@ int capture_backend_read(struct audio_block *block)
         block->samples[i] = level;
         level += step;
 
+        // bounce between bounds to create triangle-like waveform
         if (level >= 14000) {
             level = 14000;
             step = -step;
