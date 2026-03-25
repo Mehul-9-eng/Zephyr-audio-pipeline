@@ -2,7 +2,7 @@
 
 #include <zephyr/kernel.h>
 
-// fixed-size pool of blocks → avoids malloc, keeps timing predictable
+// Fixed-size pool of blocks. This avoids malloc, keeps timing predictable
 K_MEM_SLAB_DEFINE(audio_block_slab, sizeof(struct audio_block), AUDIO_BLOCK_COUNT, 4);
 
 // FIFO connects producer (capture) to consumer (playback)
