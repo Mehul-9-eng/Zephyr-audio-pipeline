@@ -13,7 +13,7 @@ struct audio_block {
     void *fifo_reserved;
     uint32_t seq; // sequence number so we can track ordering/debug behavior
     int16_t samples[AUDIO_BLOCK_SAMPLES];
-}
+};
 
 // simple stats so we can observe pipeline behavior in real time
 // this is useful for debugging things like overflow
