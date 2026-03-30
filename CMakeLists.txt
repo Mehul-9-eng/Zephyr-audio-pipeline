@@ -6,4 +6,5 @@ target_sources(app PRIVATE
     src/main.c
     src/audio_pipeline.c
     src/capture_backend.c
+    src/sink_backend.c
 )
