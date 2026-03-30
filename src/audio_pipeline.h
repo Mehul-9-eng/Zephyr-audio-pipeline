@@ -20,16 +20,22 @@ struct audio_block {
 struct pipeline_stats {
     uint32_t produced;
     uint32_t consumed;
-    uint32_t queued;
-    uint32_t high_watermark; // max queue depth observed
+    uint32_t queue1_depth;
+    uint32_t queue2_depth;
+    uint32_t queue1_high_watermark;
+    uint32_t queue2_high_watermark;
     uint32_t capture_misses; // failed allocations (no free blocks available)
     uint32_t sink_timeouts;
 };
 
 int pipeline_block_alloc(struct audio_block **block, k_timeout_t timeout);
 void pipeline_block_free(struct audio_block *block);
-void pipeline_submit(struct audio_block *block);
-struct audio_block *pipeline_receive(k_timeout_t timeout);
+
+void pipeline_submit_capture(struct audio_block *block);
+struct audio_block *pipeline_receive_process(k_timeout_t timeout);
+
+void pipeline_submit_process(struct audio_block *block);
+struct audio_block *pipeline_receive_sink(k_timeout_t timeout);
 
 // these are just helpers to track error conditions in stats
 void pipeline_note_capture_miss(void);
