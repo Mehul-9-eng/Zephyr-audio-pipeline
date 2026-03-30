@@ -3,6 +3,7 @@
 
 #include "audio_pipeline.h"
 #include "capture_backend.h"
+#include "sink_backend.h"
 
 // capture runs slightly faster. This creates pressure on pipeline
 #define CAPTURE_PERIOD_MS 10
@@ -21,7 +22,7 @@ static void process_block(struct audio_block *block)
     }
 }
 
-// producer thread: capture + process + submit
+// source thread: capture + submit to first queue
 void capture_thread(void)
 {
     uint32_t seq = 0;
@@ -38,30 +39,42 @@ void capture_thread(void)
         block->seq = seq++;
 
         capture_backend_read(block);
-        process_block(block);
-        pipeline_submit(block);
+        pipeline_submit_capture(block);
         k_msleep(CAPTURE_PERIOD_MS);
     }
 }
 
-// consumer thread: receive + release
+// processing thread: receive from first queue, process, submit to second queue
+void process_thread(void)
+{
+    while (1) {
+        struct audio_block *block;
+
+        block = pipeline_receive_process(K_FOREVER);
+        if (block == NULL) {
+            continue;
+        }
+
+        process_block(block);
+        pipeline_submit_process(block);
+    }
+}
+
+// sink thread: receive from second queue, write, release
 void playback_thread(void)
 {
     while (1) {
         struct audio_block *block;
 
-        block = pipeline_receive(K_MSEC(20));
+        block = pipeline_receive_sink(K_MSEC(20));
 
         if (block == NULL) {
             pipeline_note_sink_timeout(); // no data available
             k_msleep(PLAYBACK_PERIOD_MS);
             continue;
         }
-        // occasional print just to confirm flow is working
-        if ((block->seq % 25) == 0) {
-            printk("play %u %d\n", block->seq, block->samples[0]);
-        }
 
+        sink_backend_write(block);
         pipeline_block_free(block);
 
         k_msleep(PLAYBACK_PERIOD_MS);
@@ -70,6 +83,7 @@ void playback_thread(void)
 
 // define threads (same priority for simplicity)
 K_THREAD_DEFINE(cap_id, 2048, capture_thread, NULL, NULL, NULL, 5, 0, 0);
+K_THREAD_DEFINE(proc_id, 2048, process_thread, NULL, NULL, NULL, 5, 0, 0);
 K_THREAD_DEFINE(play_id, 2048, playback_thread, NULL, NULL, NULL, 5, 0, 0);
 
 int main(void)
@@ -81,11 +95,13 @@ int main(void)
     while (1) {
         pipeline_snapshot(&stats);
 
-        printk("p=%u c=%u d=%u h=%u m=%u t=%u\n",
+        printk("p=%u c=%u d1=%u d2=%u h1=%u h2=%u m=%u t=%u\n",
                stats.produced,
                stats.consumed,
-               stats.queued,
-               stats.high_watermark,
+               stats.queue1_depth,
+               stats.queue2_depth,
+               stats.queue1_high_watermark,
+               stats.queue2_high_watermark,
                stats.capture_misses,
                stats.sink_timeouts);
 
